@@ -10,9 +10,9 @@ local wrk = {
 }
 
 function wrk.resolve(host, service)
-   local addrs = wrk.lookup(host, service)
+   local addrs = wrk.lookup(host, service)  --实际调用script_wrk_lookup()
    for i = #addrs, 1, -1 do
-      if not wrk.connect(addrs[i]) then
+      if not wrk.connect(addrs[i]) then --实际调用script_wrk_connect()
          table.remove(addrs, i)
       end
    end

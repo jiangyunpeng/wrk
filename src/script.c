@@ -45,11 +45,13 @@ static const struct luaL_Reg threadlib[] = {
     { NULL,         NULL                   }
 };
 
-lua_State *script_create(char *file, char *url, char **headers) {
-    lua_State *L = luaL_newstate();
-    luaL_openlibs(L);
-    (void) luaL_dostring(L, "wrk = require \"wrk\"");
 
+lua_State *script_create(char *file, char *url, char **headers) {
+    lua_State *L = luaL_newstate(); //创建一个新的 Lua 状态
+    luaL_openlibs(L); //打开所有标准 Lua 库
+    (void) luaL_dostring(L, "wrk = require \"wrk\""); //加载 wrk 模块
+
+    //创建新的元表，并分别注册 addrlib、statslib 和 threadlib 库函数。
     luaL_newmetatable(L, "wrk.addr");
     luaL_register(L, NULL, addrlib);
     luaL_newmetatable(L, "wrk.stats");
@@ -58,13 +60,16 @@ lua_State *script_create(char *file, char *url, char **headers) {
     luaL_register(L, NULL, threadlib);
 
     struct http_parser_url parts = {};
+    //解析 URL 并将结果存储在 parts 中。
     script_parse_url(url, &parts);
     char *path = "/";
 
+    //检查 URL 是否包含路径字段，如果包含，则更新 path 变量。
     if (parts.field_set & (1 << UF_PATH)) {
         path = &url[parts.field_data[UF_PATH].off];
     }
 
+    //设置全局表字段
     const table_field fields[] = {
         { "lookup",  LUA_TFUNCTION, script_wrk_lookup  },
         { "connect", LUA_TFUNCTION, script_wrk_connect },
@@ -74,11 +79,13 @@ lua_State *script_create(char *file, char *url, char **headers) {
 
     lua_getglobal(L, "wrk");
 
+    //将 URL 的各部分和自定义字段设置到 wrk 表中。
     set_field(L, 4, "scheme", push_url_part(L, url, &parts, UF_SCHEMA));
     set_field(L, 4, "host",   push_url_part(L, url, &parts, UF_HOST));
     set_field(L, 4, "port",   push_url_part(L, url, &parts, UF_PORT));
     set_fields(L, 4, fields);
 
+    //设置请求头部
     lua_getfield(L, 4, "headers");
     for (char **h = headers; *h; h++) {
         char *p = strchr(*h, ':');
@@ -90,6 +97,7 @@ lua_State *script_create(char *file, char *url, char **headers) {
     }
     lua_pop(L, 5);
 
+    //如果 file 不为空，调用 luaL_dofile(L, file) 加载并执行指定的 Lua 脚本文件。
     if (file && luaL_dofile(L, file)) {
         const char *cause = lua_tostring(L, -1);
         fprintf(stderr, "%s: %s\n", file, cause);
@@ -447,6 +455,7 @@ static int script_wrk_lookup(lua_State *L) {
     const char *host    = lua_tostring(L, -2);
     const char *service = lua_tostring(L, -1);
 
+    //通过hostname获取ip地址
     if ((rc = getaddrinfo(host, service, &hints, &addrs)) != 0) {
         const char *msg = gai_strerror(rc);
         fprintf(stderr, "unable to resolve %s:%s %s\n", host, service, msg);
